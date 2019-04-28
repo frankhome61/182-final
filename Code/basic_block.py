@@ -69,5 +69,63 @@ class UpSampleConvLayer(tf.keras.Model):
 		return out
 
 
+class Bottleneck(tf.keras.Model):
+	""" Pre-activation residual block
+	Identity Mapping in Deep Residual Networks
+	ref https://arxiv.org/abs/1603.05027
+	"""
+
+	def __init__(self, inplanes, planes, stride=1, downsample=None, norm_layer=layers.BatchNormalization):
+		super(Bottleneck, self).__init__()
+		self.expansion = 4
+		self.downsample = downsample
+		if self.downsample is not None:
+			self.residual_layer = layers.Conv2D(filters=planes * self.expansion,
+											kernel_size=1, stride=stride)
+		conv_block = [norm_layer(),
+					   layers.ReLU(),
+					   layers.Conv2D(filters=planes, kernel_size=1, stride=1),
+					   norm_layer(),
+					   layers.ReLU(),
+					   layers.Conv2D(filters=planes, kernel_size=3, strides=stride),
+					   norm_layer(),
+					   layers.ReLU(),
+					   layers.Conv2D(planes, planes * self.expansion, kernel_size=1, stride=1)]
+		self.conv_block = models.Sequential(layers=conv_block)
+
+	def call(self, x):
+		if self.downsample is not None:
+			residual = self.residual_layer(x)
+		else:
+			residual = x
+		return residual + self.conv_block(x)
+
+
+class UpBottleneck(tf.keras.Model):
+	""" Up-sample residual block (from MSG-Net paper)
+    Enables passing identity all the way through the generator
+    ref https://arxiv.org/abs/1703.06953
+    """
+
+	def __init__(self, inplanes, planes, stride=2, norm_layer=layers.BatchNormalization):
+		super(UpBottleneck, self).__init__()
+		self.expansion = 4
+		self.residual_layer = UpSampleConvLayer(inplanes, planes * self.expansion,
+												kernel_size=1, stride=1, upsample=stride)
+
+		conv_block = [norm_layer(),
+					  layers.ReLU(),
+					  layers.Conv2D(filters=planes, kernel_size=1, stride=1),
+					  norm_layer(),
+					  layers.ReLU(),
+					  UpSampleConvLayer(filters=planes, kernel_size=3, stride=1, upsample=stride),
+					  norm_layer(),
+					  layers.ReLU(),
+					  layers.Conv2D(filters=planes * self.expansion, kernel_size=1, stride=1)]
+		self.conv_block = models.Sequential(layers=conv_block)
+
+	def call(self, x):
+		return self.residual_layer(x) + self.conv_block(x)
+
 
 

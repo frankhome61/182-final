@@ -1,2 +1,4 @@
 Code/trainset/*
 Code/imagenet-vgg-verydeep-19.mat
+.DS_Store
+*/.DS_Store

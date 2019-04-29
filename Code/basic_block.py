@@ -129,3 +129,27 @@ class UpBottleneck(tf.keras.Model):
 
 
 
+class Inspiration(tf.keras.Model):
+	""" Inspiration Layer (from MSG-Net paper)
+    tuning the featuremap with target Gram Matrix
+    ref https://arxiv.org/abs/1703.06953
+    """
+    def __init__(self, C, B=1):
+        super(Inspiration, self).__init__()
+        # B is equal to 1 or input mini_batch
+        self.weight = tf.random.uniform([1,C,C], name="weight")
+        # non-parameter buffer
+        self.G = tf.get_variable("gram_matrix", [B,C,C])
+        self.C = C
+
+    def setTarget(self, target):
+        self.G = target
+
+    def call(self, X):
+        # input X is a 3D feature map
+        self.P = tf.matmul(tf.tile(self.weight, [tf.shape(self.G)[0], 1, 1]), self.G)  ########## Not fully sure pytorch code is equivalent to this line, as the matrix multiplication behavior of pytorch is not fully understanded for matrices with shapes BxCxC and BxCxC
+        return tf.reshape(tf.matmul(tf.tile(tf.transpose(self.P, perm=[0,2,1]), [tf.shape(X)[0], self.C, self.C]), tf.reshape(X, [tf.shape(X)[0], tf.shape(X)[1], -1])), X.shape)
+
+    def __repr__(self):
+        return self.__class__.__name__ + '(' \
+            + 'N x ' + str(self.C) + ')'

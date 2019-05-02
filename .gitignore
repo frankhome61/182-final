@@ -1,3 +1,8 @@
 Code/trainset/*
 Code/imagenet-vgg-verydeep-19.mat
+<<<<<<< HEAD
 .idea/*
+=======
+.DS_Store
+*/.DS_Store
+>>>>>>> 9ceb2b9d85e83c3f2bae4e2efdf10e40d9913d73

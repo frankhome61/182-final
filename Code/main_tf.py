@@ -20,8 +20,7 @@ def train(style_list, content_list, batch_size, num_epochs, style_weight, conten
     ########################
     # Init model
     ########################
-    vgg = basic_block.vgg16()
-    utils.init_vgg_params(vgg)
+    vgg = basic_block.Vgg()
     style_model = basic_block.Net(ngf)
 
     ########################

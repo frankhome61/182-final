@@ -164,6 +164,17 @@ class GramMatrix(tf.keras.layers.Layer):
 	  return gram / tf.cast(n, tf.float32)
 
 
+def Vgg(trainable=False):
+    needed_layers = ['block1_conv2',
+                    'block2_conv2',
+                    'block3_conv3', 
+                    'block4_conv3']
+    vgg = tf.keras.applications.vgg16.VGG16(include_top=False, weights='imagenet')
+    vgg.trainable = trainable
+    outputs = [vgg.get_layer(name).output for name in needed_layers]
+    return tf.keras.models.Model(vgg.input, outputs)
+
+
 class Net(tf.keras.Model):
 	super(Net, self).__init__(self, input_nc=3, output_nc=3, ngf=64, norm_layer=layers.instance_norm, n_blocks=6)
 

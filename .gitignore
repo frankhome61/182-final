@@ -1,3 +1,5 @@
+Code/test/*
+Code/train/*
 Code/trainset/*
 Code/imagenet-vgg-verydeep-19.mat
 .DS_Store

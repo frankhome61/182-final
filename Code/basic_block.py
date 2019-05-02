@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
 
-class BasicBlock(tf.keras.Model):
+class BasicBlock(tf.keras.layers.Layer):
 	def __init__(self, input_shape, out_channel, downsample=None, stride=1):
 		super(BasicBlock, self).__init__()
 		self.downsample = downsample
@@ -34,7 +34,7 @@ class BasicBlock(tf.keras.Model):
 
 
 
-class UpBasicBlock(tf.keras.Model):
+class UpBasicBlock(tf.keras.layers.Layer):
 	def __init__():
 		super(UpBasicBlock, self).__init__(in_shape, out_channels, stride=2)
 		self.residual_layer = UpSampleConvLayer(in_shape, out_channels, kernel_size=1, stride=1, upsample=stride)
@@ -52,7 +52,7 @@ class UpBasicBlock(tf.keras.Model):
 		return self.residual_layer(inputs) + self.conv_block(inputs)
 
 
-class UpSampleConvLayer(tf.keras.Model):
+class UpSampleConvLayer(tf.keras.layers.Layer):
 	def __init__(self, in_shape, out_channels, kernel_size, stride, upsample=None):
 		super(UpSampleConvLayer, self).__init__()
 		self.upsample = upsample
@@ -69,7 +69,7 @@ class UpSampleConvLayer(tf.keras.Model):
 		return out
 
 
-class Bottleneck(tf.keras.Model):
+class Bottleneck(tf.keras.layers.Layer):
 	""" Pre-activation residual block
 	Identity Mapping in Deep Residual Networks
 	ref https://arxiv.org/abs/1603.05027
@@ -101,7 +101,7 @@ class Bottleneck(tf.keras.Model):
 		return residual + self.conv_block(x)
 
 
-class UpBottleneck(tf.keras.Model):
+class UpBottleneck(tf.keras.layers.Layer):
 	""" Up-sample residual block (from MSG-Net paper)
     Enables passing identity all the way through the generator
     ref https://arxiv.org/abs/1703.06953
@@ -129,7 +129,7 @@ class UpBottleneck(tf.keras.Model):
 
 
 
-class Inspiration(tf.keras.Model):
+class Inspiration(tf.keras.layers.Layer):
 	""" Inspiration Layer (from MSG-Net paper)
     tuning the featuremap with target Gram Matrix
     ref https://arxiv.org/abs/1703.06953
@@ -155,7 +155,7 @@ class Inspiration(tf.keras.Model):
             + 'N x ' + str(self.C) + ')'
 
 
-class GramMatrix(tf.keras.Model):
+class GramMatrix(tf.keras.layers.Layer):
 	def call(self, y):
 	  channels = int(y.shape[-1])
 	  a = tf.reshape(y, [-1, channels])

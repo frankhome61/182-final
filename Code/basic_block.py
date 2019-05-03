@@ -155,6 +155,9 @@ class Inspiration(tf.keras.layers.Layer):
 
 
 class GramMatrix(tf.keras.layers.Layer):
+    def __init__():
+        super(GramMatrix, self).__init__()
+        
     def call(self, y):
         channels = int(y.shape[-1])
         a = tf.reshape(y, [-1, channels])

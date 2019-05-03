@@ -128,40 +128,45 @@ class UpBottleneck(tf.keras.layers.Layer):
 		return self.residual_layer(x) + self.conv_block(x)
 
 
-
 class Inspiration(tf.keras.layers.Layer):
 	""" Inspiration Layer (from MSG-Net paper)
     tuning the featuremap with target Gram Matrix
     ref https://arxiv.org/abs/1703.06953
     """
-    def __init__(self, C, B=1):
-        super(Inspiration, self).__init__()
-        # B is equal to 1 or input mini_batch
-        self.weight = tf.random.uniform([1,C,C], name="weight")
-        # non-parameter buffer
-        self.G = tf.get_variable("gram_matrix", [B,C,C])
-        self.C = C
 
-    def setTarget(self, target):
-        self.G = target
+	def __init__(self, C, B=1):
+		super(Inspiration, self).__init__()
 
-    def call(self, X):
-        # input X is a 3D feature map
-        self.P = tf.matmul(tf.tile(self.weight, [tf.shape(self.G)[0], 1, 1]), self.G)  ########## Not fully sure pytorch code is equivalent to this line, as the matrix multiplication behavior of pytorch is not fully understanded for matrices with shapes BxCxC and BxCxC
-        return tf.reshape(tf.matmul(tf.tile(tf.transpose(self.P, perm=[0,2,1]), [tf.shape(X)[0], self.C, self.C]), tf.reshape(X, [tf.shape(X)[0], tf.shape(X)[1], -1])), X.shape)
+		# B is equal to 1 or input mini_batch
+		self.weight = tf.random.uniform([1, C, C], name="weight")
+		# non-parameter buffer
+		self.G = tf.get_variable("gram_matrix", [B, C, C])
+		self.C = C
 
-    def __repr__(self):
-        return self.__class__.__name__ + '(' \
-            + 'N x ' + str(self.C) + ')'
+	def setTarget(self, target):
+		self.G = target
+
+
+	def call(self, X):
+		# input X is a 3D feature map
+		self.P = tf.matmul(tf.tile(self.weight, [tf.shape(self.G)[0], 1, 1]),
+						   self.G)  ########## Not fully sure pytorch code is equivalent to this line, as the matrix multiplication behavior of pytorch is not fully understanded for matrices with shapes BxCxC and BxCxC
+		return tf.reshape(tf.matmul(tf.tile(tf.transpose(self.P, perm=[0, 2, 1]), [tf.shape(X)[0], self.C, self.C]),
+									tf.reshape(X, [tf.shape(X)[0], tf.shape(X)[1], -1])), X.shape)
+
+
+	def __repr__(self):
+		return self.__class__.__name__ + '(' \
+			   + 'N x ' + str(self.C) + ')'
 
 
 class GramMatrix(tf.keras.layers.Layer):
 	def call(self, y):
-	  channels = int(y.shape[-1])
-	  a = tf.reshape(y, [-1, channels])
-	  n = tf.shape(a)[0]
-	  gram = tf.matmul(a, a, transpose_a=True)
-	  return gram / tf.cast(n, tf.float32)
+		channels = int(y.shape[-1])
+		a = tf.reshape(y, [-1, channels])
+		n = tf.shape(a)[0]
+		gram = tf.matmul(a, a, transpose_a=True)
+		return gram / tf.cast(n, tf.float32)
 
 
 def Vgg(trainable=False):
@@ -176,9 +181,10 @@ def Vgg(trainable=False):
 
 
 class Net(tf.keras.Model):
-	super(Net, self).__init__(self, input_nc=3, output_nc=3, ngf=64, norm_layer=layers.instance_norm, n_blocks=6)
+	def __init__(self, input_nc=3, output_nc=3, ngf=64, norm_layer=layers.BatchNormalization, n_blocks=6):
+		super(Net, self).__init__()
 
-		self.gram=GramMatrix()
+		self.gram = GramMatrix()
 		block = Bottleneck
 		upblock = UpBottleneck
 		expansion = 4
@@ -186,32 +192,30 @@ class Net(tf.keras.Model):
 		model1 = [layers.Conv2D(filters=64, kernel_size=7, strides=1),
 				  layers.ReLU(),
 				  block(64, 32, 2, 1),
-				  block(32*expansion, ngf, 2, 1)]
+				  block(32 * expansion, ngf, 2, 1)]
 		self.model1 = models.Sequential(layers=model1)
 
-		
 		model = []
-		self.ins = Inspiration(ngf * expansion) 
+		self.ins = Inspiration(ngf * expansion)
 		model += [self.model1]
 		model += [self.ins]
 
 		for i in range(n_blocks):
-			model += [block(ngf*expansion, ngf, 1, None)]
+			model += [block(ngf * expansion, ngf, 1, None)]
 
-		model += [upblock*(ngf*expansion, 32, 2),
-				  upblock(32*expansion, 16, 2),
+		model += [upblock * (ngf * expansion, 32, 2),
+				  upblock(32 * expansion, 16, 2),
 				  layers.ReLU(),
-				  layers.Conv2D(output_nc, kernel_size=7, strides=1)] 
+				  layers.Conv2D(output_nc, kernel_size=7, strides=1)]
 
 		self.model = models.Sequential(layers=model)
+
 
 	def setTarget(self, Xs):
 		F = self.model1(Xs)
 		G = self.gram(F)
 		self.ins.setTarget(G)
 
+
 	def call(self, input):
 		return self.model(input)
-
-
-

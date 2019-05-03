@@ -139,7 +139,7 @@ class Inspiration(tf.keras.layers.Layer):
         self.G = tf.Variable([B, C, C], "gram_matrix")
         self.C = C
 
-    def setTarget(self, target):
+    def set_target(self, target):
         self.G = target
 
     def call(self, X):
@@ -155,7 +155,7 @@ class Inspiration(tf.keras.layers.Layer):
 
 
 class GramMatrix(tf.keras.layers.Layer):
-    def __init__():
+    def __init__(self):
         super(GramMatrix, self).__init__()
         
     def call(self, y):
@@ -164,17 +164,6 @@ class GramMatrix(tf.keras.layers.Layer):
         n = tf.shape(a)[0]
         gram = tf.matmul(a, a, transpose_a=True)
         return gram / tf.cast(n, tf.float32)
-
-
-def Vgg(trainable=False):
-    needed_layers = ['block1_conv2',
-                     'block2_conv2',
-                     'block3_conv3',
-                     'block4_conv3']
-    vgg = tf.keras.applications.vgg16.VGG16(include_top=False, weights='imagenet')
-    vgg.trainable = trainable
-    outputs = [vgg.get_layer(name).output for name in needed_layers]
-    return tf.keras.models.Model(vgg.input, outputs)
 
 
 class Net(tf.keras.Model):
@@ -204,10 +193,29 @@ class Net(tf.keras.Model):
                   layers.Conv2D(output_nc, kernel_size=7, strides=1)]
         self.model = models.Sequential(layers=model)
 
-    def setTarget(self, Xs):
+    def set_target(self, Xs):
         F = self.model1(Xs)
         G = self.gram(F)
-        self.ins.setTarget(G)
+        self.ins.set_target(G)
 
     def call(self, input):
         return self.model(input)
+
+
+
+def Vgg(trainable=False):
+    needed_layers = ['block1_conv2',
+                     'block2_conv2',
+                     'block3_conv3',
+                     'block4_conv3']
+    vgg = tf.keras.applications.vgg16.VGG16(include_top=False, weights='imagenet')
+    vgg.trainable = trainable
+    outputs = [vgg.get_layer(name).output for name in needed_layers]
+    return tf.keras.models.Model(vgg.input, outputs)
+
+def gram_matrix(y):
+    channels = int(y.shape[-1])
+    a = tf.reshape(y, [-1, channels])
+    n = tf.shape(a)[0]
+    gram = tf.matmul(a, a, transpose_a=True)
+    return gram / tf.cast(n, tf.float32)

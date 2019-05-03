@@ -176,7 +176,6 @@ def Vgg(trainable=False):
 
 class Net(tf.keras.Model):
     def __init__(self, input_nc=3, output_nc=3, ngf=64, norm_layer=layers.BatchNormalization, n_blocks=6):
-        print("??????????\n")
         super(Net, self).__init__()
         self.gram = GramMatrix()
         block = Bottleneck
@@ -195,6 +194,7 @@ class Net(tf.keras.Model):
 
         for i in range(n_blocks):
             model += [block(ngf * expansion, ngf, 1, None)]
+
         model += [upblock(ngf * expansion, 32, 2),
                   upblock(32 * expansion, 16, 2),
                   layers.ReLU(),

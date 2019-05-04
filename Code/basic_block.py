@@ -94,6 +94,7 @@ class Bottleneck(tf.keras.layers.Layer):
             residual = self.residual_layer(x)
         else:
             residual = x
+        print(residual.shape, self.conv_block(x).shape)
         return residual + self.conv_block(x)
 
 

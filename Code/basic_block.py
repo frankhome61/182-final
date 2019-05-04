@@ -232,4 +232,5 @@ def gram_matrix(y):
     a = tf.reshape(y, [-1, channels])
     n = tf.shape(a)[0]
     gram = tf.matmul(a, a, transpose_a=True)
+    print("input", y.shape, "gram", gram.shape)
     return gram / tf.cast(n, tf.float32)

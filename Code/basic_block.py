@@ -25,7 +25,7 @@ class BasicBlock(tf.keras.layers.Layer):
         self.conv_block = models.Sequential(layers=conv_block)
 
     def call(self, inputs, training=False):
-        print(inputs.shape)
+        #print(inputs.shape)
         if self.downsample is not None:
             residual = self.residual_layer(inputs)
         else:
@@ -94,7 +94,7 @@ class Bottleneck(tf.keras.layers.Layer):
             residual = self.residual_layer(x)
         else:
             residual = x
-        print(x.shape, residual.shape, self.conv_block(x).shape)
+        #print(x.shape, residual.shape, self.conv_block(x).shape)
         return residual + self.conv_block(x)
 
 
@@ -122,7 +122,7 @@ class UpBottleneck(tf.keras.layers.Layer):
         self.conv_block = models.Sequential(layers=conv_block)
 
     def call(self, x):
-        print(x.shape, self.residual_layer(x).shape, self.conv_block(x).shape)
+        #print(x.shape, self.residual_layer(x).shape, self.conv_block(x).shape)
         return self.residual_layer(x) + self.conv_block(x)
 
 
@@ -185,8 +185,8 @@ class Net(tf.keras.Model):
         block = Bottleneck
         upblock = UpBottleneck
         expansion = 4
-        model1 = [layers.Conv2D(filters=64, kernel_size=5, strides=1),
-                  layers.ReLU(),
+        model1 = [#layers.Conv2D(filters=64, kernel_size=7, strides=1),
+                  #layers.ReLU(),
                   block(64, 32, 2, 1),
                   block(32 * expansion, ngf, 2, 1)]
         self.model1 = models.Sequential(layers=model1)
@@ -206,13 +206,13 @@ class Net(tf.keras.Model):
 
     def set_target(self, Xs):
         F = self.model1(Xs)
-        print("downsample:", F.shape)
+        #print("downsample:", F.shape)
         G = self.gram(F)
         self.ins.set_target(G)
 
     def call(self, input):
         res = self.model(input)
-        print("upsample:", res.shape)
+        #print("upsample:", res.shape)
         return res
 
 

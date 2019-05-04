@@ -140,14 +140,24 @@ class Inspiration(tf.keras.layers.Layer):
         self.C = C
 
     def set_target(self, target):
-        self.G = target
+        # print(target.shape)
+        self.G = tf.expand_dims(target, 0)
 
     def call(self, X):
         # input X is a 3D feature map
-        self.P = tf.matmul(tf.tile(self.weight, [tf.shape(self.G)[0], 1, 1]),
+        # print(X.shape)
+        # print(self.G.shape[0])
+        # print(self.weight.shape)
+        # print(tf.shape(self.G)[0])
+        # Reshape X from (1, H, W, C) to (H, W, C)
+        X = tf.squeeze(X)
+
+        # print(self.G.shape)
+        self.P = tf.matmul(tf.tile(self.weight, [self.G.shape[0], 1, 1]),
                            self.G)  ########## Not fully sure pytorch code is equivalent to this line, as the matrix multiplication behavior of pytorch is not fully understanded for matrices with shapes BxCxC and BxCxC
-        return tf.reshape(tf.matmul(tf.tile(tf.transpose(self.P, perm=[0, 2, 1]), [tf.shape(X)[0], self.C, self.C]),
-                                    tf.reshape(X, [tf.shape(X)[0], tf.shape(X)[1], -1])), X.shape)
+        a = tf.expand_dims(tf.matmul(X, tf.tile(tf.transpose(self.P, perm=[0, 2, 1]), [X.shape[0], 1, 1])), 0) # Blind fix. Flipped the order of the first argument and the second argument in matrix multiplication. Originally first argument has shape (H, self.c, self.c), and the second argument has shape (H, W, self.c)
+        # print(a.shape)
+        return a
 
     def __repr__(self):
         return self.__class__.__name__ + '(' \

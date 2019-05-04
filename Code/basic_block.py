@@ -57,7 +57,7 @@ class UpSampleConvLayer(tf.keras.layers.Layer):
         if upsample:
             self.upsample_layer = layers.UpSampling2D(size=upsample, interpolation="bilinear")
         # TODO: Relection Padding?
-        self.conv2d = layers.Conv2D(filters=out_channels, kernel_size=kernel_size, strides=stride)
+        self.conv2d = layers.Conv2D(filters=out_channels, kernel_size=kernel_size, strides=stride, padding='same')
 
     def call(self, inputs, training=False):
         if self.upsample:
@@ -77,7 +77,7 @@ class Bottleneck(tf.keras.layers.Layer):
         self.expansion = 4
         self.downsample = downsample
         if self.downsample is not None:
-            self.residual_layer = layers.Conv2D(planes * self.expansion, kernel_size=3, strides=stride, padding='same') #Originally kernel_size = 1
+            self.residual_layer = layers.Conv2D(planes * self.expansion, kernel_size=1, strides=stride, padding='same') #Originally kernel_size = 1
         conv_block = [norm_layer(),
                       layers.ReLU(),
                       layers.Conv2D(filters=planes, kernel_size=1, strides=1),
@@ -122,6 +122,7 @@ class UpBottleneck(tf.keras.layers.Layer):
         self.conv_block = models.Sequential(layers=conv_block)
 
     def call(self, x):
+        print(x.shape, self.residual_layer(x).shape, self.conv_block(x).shape)
         return self.residual_layer(x) + self.conv_block(x)
 
 
@@ -184,7 +185,7 @@ class Net(tf.keras.Model):
         block = Bottleneck
         upblock = UpBottleneck
         expansion = 4
-        model1 = [layers.Conv2D(filters=64, kernel_size=7, strides=1),
+        model1 = [layers.Conv2D(filters=64, kernel_size=5, strides=1),
                   layers.ReLU(),
                   block(64, 32, 2, 1),
                   block(32 * expansion, ngf, 2, 1)]
@@ -197,20 +198,22 @@ class Net(tf.keras.Model):
 
         for i in range(n_blocks):
             model += [block(ngf * expansion, ngf, 1, None)]
-
         model += [upblock(ngf * expansion, 32, 2),
                   upblock(32 * expansion, 16, 2),
                   layers.ReLU(),
-                  layers.Conv2D(output_nc, kernel_size=7, strides=1)]
+                  layers.Conv2D(output_nc, kernel_size=7, strides=1, padding='same')]
         self.model = models.Sequential(layers=model)
 
     def set_target(self, Xs):
         F = self.model1(Xs)
+        print("downsample:", F.shape)
         G = self.gram(F)
         self.ins.set_target(G)
 
     def call(self, input):
-        return self.model(input)
+        res = self.model(input)
+        print("upsample:", res.shape)
+        return res
 
 
 

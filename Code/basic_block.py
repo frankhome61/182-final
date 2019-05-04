@@ -77,13 +77,13 @@ class Bottleneck(tf.keras.layers.Layer):
         self.expansion = 4
         self.downsample = downsample
         if self.downsample is not None:
-            self.residual_layer = layers.Conv2D(planes * self.expansion, kernel_size=3, strides=stride) #Originally kernel_size = 1
+            self.residual_layer = layers.Conv2D(planes * self.expansion, kernel_size=3, strides=stride, padding='same') #Originally kernel_size = 1
         conv_block = [norm_layer(),
                       layers.ReLU(),
                       layers.Conv2D(filters=planes, kernel_size=1, strides=1),
                       norm_layer(),
                       layers.ReLU(),
-                      layers.Conv2D(filters=planes, kernel_size=3, strides=stride),
+                      layers.Conv2D(filters=planes, kernel_size=3, strides=stride, padding='same'),
                       norm_layer(),
                       layers.ReLU(),
                       layers.Conv2D(planes * self.expansion, kernel_size=1, strides=1)]
@@ -94,6 +94,7 @@ class Bottleneck(tf.keras.layers.Layer):
             residual = self.residual_layer(x)
         else:
             residual = x
+        print(x.shape, residual.shape, self.conv_block(x).shape)
         return residual + self.conv_block(x)
 
 

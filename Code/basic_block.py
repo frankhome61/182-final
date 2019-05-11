@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow.keras import datasets, layers, models
+import numpy as np
 
 
 class BasicBlock(tf.keras.layers.Layer):
@@ -136,30 +137,36 @@ class Inspiration(tf.keras.layers.Layer):
         super(Inspiration, self).__init__()
 
         # B is equal to 1 or input mini_batch
-        self.weight = tf.random.uniform([1, C, C], name="weight")
+        # self.weight = tf.random.uniform([1, C, C], name="weight")
+        init_weight = np.random.uniform(size=[1, C, C])
+        self.weight = tf.Variable(init_weight, name="weight", dtype=tf.float32)
+
+
+        # random_uniform_init = tf.keras.initializers.lecun_uniform(seed=None)
+        # self.weight = tf.get_variable("inspiration weight", [], initializer=random_uniform_init)
         # non-parameter buffer
-        self.G = tf.Variable([B, C, C], "gram_matrix")
+        init_gram = np.random.uniform(size=[B, C, C])
+        self.G = tf.Variable(init_gram, "gram_matrix", dtype=tf.float32)
         self.C = C
 
     def set_target(self, target):
-        # print(target.shape)
-        self.G = tf.expand_dims(target, 0)
+        self.G = target
+        ### Bottom is original implementation
+        # self.G = tf.expand_dims(target, 0)
 
     def call(self, X):
-        # input X is a 3D feature map
-        # print(X.shape)
-        # print(self.G.shape[0])
-        # print(self.weight.shape)
-        # print(tf.shape(self.G)[0])
-        # Reshape X from (1, H, W, C) to (H, W, C)
-        X = tf.squeeze(X)
+        X_in = tf.transpose(X, perm=[0, 3, 1, 2]) #Original paper implementation based on X with shape (b, ch, h, w), whereas our implementation has (b, h, w, ch). To avoid problem in computation, reshape to make it consistent with paper
+        # print("weight: {}, self.G, X: {}".format(self.weight.shape, self.G.shape, X_in.shape))
 
-        # print(self.G.shape)
-        self.P = tf.matmul(tf.tile(self.weight, [self.G.shape[0], 1, 1]),
-                           self.G)  ########## Not fully sure pytorch code is equivalent to this line, as the matrix multiplication behavior of pytorch is not fully understanded for matrices with shapes BxCxC and BxCxC
-        a = tf.expand_dims(tf.matmul(X, tf.tile(tf.transpose(self.P, perm=[0, 2, 1]), [X.shape[0], 1, 1])), 0) # Blind fix. Flipped the order of the first argument and the second argument in matrix multiplication. Originally first argument has shape (H, self.c, self.c), and the second argument has shape (H, W, self.c)
-        # print(a.shape)
-        return a
+        self.P = tf.matmul(tf.tile(self.weight, [self.G.shape[0], 1, 1]), self.G)  ########## Not fully sure pytorch code is equivalent to this line, as the matrix multiplication behavior of pytorch is not fully understanded for matrices with shapes BxCxC and BxCxC
+        
+        b, ch, h, w = X_in.shape
+        # print("self.P: {}".format(self.P.shape))
+        X_out = tf.reshape(tf.matmul(tf.tile(tf.transpose(self.P, perm=[0, 2, 1]), [b, 1, 1]),
+                      tf.reshape(X_in, [b, ch, -1])), [b, ch, h, w])
+
+        # tf.reshape(X_in, [X_in.shape[0], X.shape[1], -1])   # This reshapes X_in into (b, ch, h*w)
+        return tf.transpose(X_out, perm=[0, 2, 3, 1])
 
     def __repr__(self):
         return self.__class__.__name__ + '(' \
@@ -169,13 +176,20 @@ class Inspiration(tf.keras.layers.Layer):
 class GramMatrix(tf.keras.layers.Layer):
     def __init__(self):
         super(GramMatrix, self).__init__()
-        
+
     def call(self, y):
-        channels = int(y.shape[-1])
-        a = tf.reshape(y, [-1, channels])
-        n = tf.shape(a)[0]
-        gram = tf.matmul(a, a, transpose_a=True)
-        return gram / tf.cast(n, tf.float32)
+        b, h, w, ch = y.shape
+        features = tf.reshape(y, [b, ch, w * h])
+        features_t = tf.transpose(features, perm=[0, 2, 1])
+        gram = tf.matmul(features, features_t) / (ch * h * w)
+        return gram
+    #### Bottom is the original implementation
+    # def call(self, y):
+    #     channels = int(y.shape[-1])
+    #     a = tf.reshape(y, [-1, channels])
+    #     n = tf.shape(a)[0]
+    #     gram = tf.matmul(a, a, transpose_a=True)
+    #     return gram / tf.cast(n, tf.float32)
 
 
 class Net(tf.keras.Model):
@@ -186,9 +200,10 @@ class Net(tf.keras.Model):
         upblock = UpBottleneck
         expansion = 4
         model1 = [#layers.Conv2D(filters=64, kernel_size=7, strides=1),
+                  # norm_layer(64),
                   #layers.ReLU(),
-                  block(64, 32, 2, 1),
-                  block(32 * expansion, ngf, 2, 1)]
+                  block(64, 32, 2, 1, norm_layer),
+                  block(32 * expansion, ngf, 2, 1, norm_layer)]
         self.model1 = models.Sequential(layers=model1)
 
         model = []
@@ -197,9 +212,11 @@ class Net(tf.keras.Model):
         model += [self.ins]
 
         for i in range(n_blocks):
-            model += [block(ngf * expansion, ngf, 1, None)]
-        model += [upblock(ngf * expansion, 32, 2),
-                  upblock(32 * expansion, 16, 2),
+            model += [block(ngf * expansion, ngf, 1, None, norm_layer)]
+            
+        model += [upblock(ngf * expansion, 32, 2, norm_layer),
+                  upblock(32 * expansion, 16, 2, norm_layer),
+                  norm_layer(),
                   layers.ReLU(),
                   layers.Conv2D(output_nc, kernel_size=7, strides=1, padding='same')]
         self.model = models.Sequential(layers=model)
@@ -223,14 +240,11 @@ def Vgg(trainable=False):
                      'block3_conv3',
                      'block4_conv3']
     vgg = tf.keras.applications.vgg16.VGG16(include_top=False, weights='imagenet')
-    vgg.trainable = trainable
+    # print(vgg.trainable)
+    # vgg.trainable = trainable
+    # print(vgg.trainable)
+    for layer in vgg.layers:
+      layer.trainable = False
+      # print(layer, layer.trainable)
     outputs = [vgg.get_layer(name).output for name in needed_layers]
     return tf.keras.models.Model(vgg.input, outputs)
-
-def gram_matrix(y):
-    channels = int(y.shape[-1])
-    a = tf.reshape(y, [-1, channels])
-    n = tf.shape(a)[0]
-    gram = tf.matmul(a, a, transpose_a=True)
-    #print("input", y.shape, "gram", gram.shape)
-    return gram / tf.cast(n, tf.float32)

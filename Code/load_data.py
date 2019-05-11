@@ -18,8 +18,8 @@ def preprocess_image_tensor(image, target_shape):
     """Resizes given image"""
     image = tf.image.decode_jpeg(image, channels=3)
     image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-    image -= 0.5
-    image *= 2
+    # image -= 0.5
+    # image *= 2
     image = tf.image.resize(image,
                             target_shape
                             )
@@ -28,13 +28,14 @@ def preprocess_image_tensor(image, target_shape):
 
 def load_and_preprocess_image(path):
     image = plt.imread(path) / 255.
-    return preprocess_image(image)
-
-
-def preprocess_image(image):
-    image = image - 0.5
-    image = image * 2
     return image
+    # return preprocess_image(image)
+
+
+# def preprocess_image(image):
+#     image = image - 0.5
+#     image = image * 2
+#     return image
 
 
 def _floats_feature(value):

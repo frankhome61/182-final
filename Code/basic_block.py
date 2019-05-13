@@ -50,23 +50,6 @@ class UpBasicBlock(tf.keras.layers.Layer):
     def call(self, inputs, training=False):
         return self.residual_layer(inputs) + self.conv_block(inputs)
 
-
-class UpSampleConvLayer(tf.keras.layers.Layer):
-    def __init__(self, inplane, out_channels, kernel_size, stride, upsample=None):
-        super(UpSampleConvLayer, self).__init__()
-        self.upsample = upsample
-        if upsample:
-            self.upsample_layer = layers.UpSampling2D(size=upsample, interpolation="bilinear")
-        # TODO: Relection Padding?
-        self.conv2d = layers.Conv2D(filters=out_channels, kernel_size=kernel_size, strides=stride, padding='same')
-
-    def call(self, inputs, training=False):
-        if self.upsample:
-            x = self.upsample_layer(inputs)
-        out = self.conv2d(x)
-        return out
-
-
 class Bottleneck(tf.keras.layers.Layer):
     """ Pre-activation residual block
     Identity Mapping in Deep Residual Networks
@@ -77,17 +60,19 @@ class Bottleneck(tf.keras.layers.Layer):
         super(Bottleneck, self).__init__()
         self.expansion = 4
         self.downsample = downsample
+        # self.stride = stride
+        # print("Entering bottle neck. Stride = {}\n\n\n".format(stride))
         if self.downsample is not None:
-            self.residual_layer = layers.Conv2D(planes * self.expansion, kernel_size=1, strides=stride, padding='same') #Originally kernel_size = 1
+            self.residual_layer = layers.Conv2D(planes * self.expansion, kernel_size=1, strides=stride) #Originally kernel_size = 1
         conv_block = [norm_layer(),
                       layers.ReLU(),
                       layers.Conv2D(filters=planes, kernel_size=1, strides=1),
                       norm_layer(),
                       layers.ReLU(),
-                      layers.Conv2D(filters=planes, kernel_size=3, strides=stride, padding='same'),
+                      ConvLayer(planes, planes, kernel_size=3, stride=stride),
                       norm_layer(),
                       layers.ReLU(),
-                      layers.Conv2D(planes * self.expansion, kernel_size=1, strides=1)]
+                      layers.Conv2D(filters=planes * self.expansion, kernel_size=1, strides=1)]
         self.conv_block = models.Sequential(layers=conv_block)
 
     def call(self, x):
@@ -95,7 +80,8 @@ class Bottleneck(tf.keras.layers.Layer):
             residual = self.residual_layer(x)
         else:
             residual = x
-        #print(x.shape, residual.shape, self.conv_block(x).shape)
+        # print("\n\n\nExiting bottle neck. Stride = {}".format(self.stride))
+        # print(self.downsample, x.shape, residual.shape, self.conv_block(x).shape)
         return residual + self.conv_block(x)
 
 
@@ -125,6 +111,87 @@ class UpBottleneck(tf.keras.layers.Layer):
     def call(self, x):
         #print(x.shape, self.residual_layer(x).shape, self.conv_block(x).shape)
         return self.residual_layer(x) + self.conv_block(x)
+
+
+class ConvLayer(tf.keras.layers.Layer):
+    def __init__(self, in_channels, out_channels, kernel_size, stride):
+        super(ConvLayer, self).__init__()
+        self.reflection_padding = int(np.floor(kernel_size / 2))
+        # self.stride = stride
+        # print("Entering ConvLayer. Stride = {}\n\n\n".format(stride))
+        self.conv2d = layers.Conv2D(filters=out_channels, kernel_size=kernel_size, strides=stride)
+
+    def call(self, x):
+        # Checkout https://stackoverflow.com/questions/50677544/reflection-padding-conv2d
+        # Assume we have tensor with shape (b, ch, h, w)
+        # print(x.shape)
+        out = tf.pad(x, [[0, 0], [self.reflection_padding, self.reflection_padding], [self.reflection_padding, self.reflection_padding], [0, 0]], 'REFLECT')
+        out = self.conv2d(out)
+        # print("\n\n\nExiting ConvLayer. Stride = {}".format(self.stride))
+        # print(out.shape)
+        return out
+### Original PyTorch Implementation
+# class ConvLayer(torch.nn.Module):
+#     def __init__(self, in_channels, out_channels, kernel_size, stride):
+#         super(ConvLayer, self).__init__()
+#         reflection_padding = int(np.floor(kernel_size / 2))
+#         self.reflection_pad = nn.ReflectionPad2d(reflection_padding)
+#         self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride)
+
+#     def forward(self, x):
+#         out = self.reflection_pad(x)
+#         out = self.conv2d(out)
+#         return out
+
+
+
+class UpSampleConvLayer(tf.keras.layers.Layer):
+    """UpsampleConvLayer
+    Upsamples the input and then does a convolution. This method gives better results
+    compared to ConvTranspose2d.
+    ref: http://distill.pub/2016/deconv-checkerboard/
+    """
+
+    def __init__(self, inplane, out_channels, kernel_size, stride, upsample=None):
+        super(UpSampleConvLayer, self).__init__()
+        self.upsample = upsample
+        if upsample:
+            self.upsample_layer = layers.UpSampling2D(size=upsample, interpolation="bilinear")
+        self.reflection_padding = int(np.floor(kernel_size / 2))
+        self.conv2d = layers.Conv2D(filters=out_channels, kernel_size=kernel_size, strides=stride)
+
+    def call(self, inputs, training=False):
+        if self.upsample:
+            x = self.upsample_layer(inputs)
+        if self.reflection_padding != 0:
+            x = tf.pad(x, [[0, 0], [self.reflection_padding, self.reflection_padding], [self.reflection_padding, self.reflection_padding], [0, 0]], 'REFLECT')
+        out = self.conv2d(x)
+        return out
+### Original PyTorch Implementation
+# class UpsampleConvLayer(torch.nn.Module):
+#     """UpsampleConvLayer
+#     Upsamples the input and then does a convolution. This method gives better results
+#     compared to ConvTranspose2d.
+#     ref: http://distill.pub/2016/deconv-checkerboard/
+#     """
+
+#     def __init__(self, in_channels, out_channels, kernel_size, stride, upsample=None):
+#         super(UpsampleConvLayer, self).__init__()
+#         self.upsample = upsample
+#         if upsample:
+#             self.upsample_layer = torch.nn.Upsample(scale_factor=upsample)
+#         self.reflection_padding = int(np.floor(kernel_size / 2))
+#         if self.reflection_padding != 0:
+#             self.reflection_pad = nn.ReflectionPad2d(self.reflection_padding)
+#         self.conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride)
+
+#     def forward(self, x):
+#         if self.upsample:
+#             x = self.upsample_layer(x)
+#         if self.reflection_padding != 0:
+#             x = self.reflection_pad(x)
+#         out = self.conv2d(x)
+#         return out
 
 
 class Inspiration(tf.keras.layers.Layer):
@@ -199,12 +266,13 @@ class Net(tf.keras.Model):
         block = Bottleneck
         upblock = UpBottleneck
         expansion = 4
-        model1 = [#layers.Conv2D(filters=64, kernel_size=7, strides=1),
-                  # norm_layer(64),
-                  #layers.ReLU(),
+        model1 = [ConvLayer(input_nc, 64, kernel_size=7, stride=1),
+                  norm_layer(),
+                  layers.ReLU(),
                   block(64, 32, 2, 1, norm_layer),
                   block(32 * expansion, ngf, 2, 1, norm_layer)]
         self.model1 = models.Sequential(layers=model1)
+        print(self.model1)
 
         model = []
         self.ins = Inspiration(ngf * expansion)
@@ -218,7 +286,7 @@ class Net(tf.keras.Model):
                   upblock(32 * expansion, 16, 2, norm_layer),
                   norm_layer(),
                   layers.ReLU(),
-                  layers.Conv2D(output_nc, kernel_size=7, strides=1, padding='same')]
+                  ConvLayer(16*expansion, output_nc, kernel_size=7, stride=1)]
         self.model = models.Sequential(layers=model)
 
     def set_target(self, Xs):
